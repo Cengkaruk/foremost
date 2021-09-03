@@ -529,4 +529,69 @@ describe("Market", function () {
       await createBuyOrderERC20Royalty('royaltyV2');
     });
   });
+
+  describe("Cancel sell order", async function () {
+    let market;
+
+    beforeEach(async function () {
+      market = await deploy();
+
+      const accounts = await ethers.getSigners();
+      await nfts.test.safeMint(accounts[0].address);
+
+      await nfts.test.setApprovalForAll(
+        market.address,
+        true
+      );
+    });
+
+    it("should revert when orderId not exist", async function () {
+      const price = utils.parseEther("1");
+      await market.createSellOrder(
+        1,
+        nfts.test.address,
+        price,
+        ethers.constants.AddressZero
+      );
+
+      const cancelOrder = market.cancelOrder(2);
+
+      expect(cancelOrder)
+        .eventually
+        .rejectedWith("Market: The order does not exist");
+    });
+
+    it("should revert when not order creator", async function () {
+      const price = utils.parseEther("1");
+      await market.createSellOrder(
+        1,
+        nfts.test.address,
+        price,
+        ethers.constants.AddressZero
+      );
+      
+      const accounts = await ethers.getSigners();
+      const cancelOrder = market.connect(accounts[1]).cancelOrder(1);
+
+      expect(cancelOrder)
+        .eventually
+        .rejectedWith("Market: Only can be called by order creator");
+    });
+
+    it("should cancel the order", async function () {
+      const price = utils.parseEther("1");
+      await market.createSellOrder(
+        1,
+        nfts.test.address,
+        price,
+        ethers.constants.AddressZero
+      );
+
+      await market.cancelOrder(1);
+
+      const accounts = await ethers.getSigners();
+      const tokenOwner = await nfts.test.ownerOf(1);
+      expect(tokenOwner).is.equal(accounts[0].address);
+    });
+  });
 });

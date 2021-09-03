@@ -189,7 +189,25 @@ contract Market is
     nonReentrant
   {}
 
-  function cancelOrder(uint256 orderId) public override nonReentrant {}
+  function cancelOrder(uint256 orderId)
+    public
+    override
+    nonReentrant
+    orderExists(orderId)
+    onlyOrderCreator(orderId)
+  {
+    Order memory _order = orders[orderId];
+
+    IERC721Upgradeable(_order.tokenContract).safeTransferFrom(
+      address(this),
+      _order.tokenOwner,
+      _order.tokenId
+    );
+
+    emit OrderCanceled(orderId, _order.tokenId, _order.tokenContract);
+
+    delete orders[orderId];
+  }
 
   function updateSellOrder(uint256 orderId, uint256 price) public override {}
 
@@ -355,6 +373,14 @@ contract Market is
     require(
       orders[orderId].tokenOwner != address(0),
       "Market: The order does not exist"
+    );
+    _;
+  }
+
+  modifier onlyOrderCreator(uint256 orderId) {
+    require(
+      orders[orderId].tokenOwner == msg.sender,
+      "Market: Only can be called by order creator"
     );
     _;
   }
