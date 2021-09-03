@@ -61,47 +61,10 @@ contract Market is
     uint256 price,
     address currency
   ) public override nonReentrant returns (uint256) {
-    require(
-      IERC165Upgradeable(tokenContract).supportsInterface(ERC721InterfaceId),
-      "Market: tokenContract does not support ERC721 interface"
-    );
-
-    address tokenOwner = IERC721Upgradeable(tokenContract).ownerOf(tokenId);
-    require(
-      msg.sender == IERC721Upgradeable(tokenContract).getApproved(tokenId) ||
-        msg.sender == tokenOwner,
-      "Market: Caller must be approved or owner for tokenId"
-    );
-
-    require(price > 0, "Market: Price cannot be zero");
-
-    _orderIdCounter.increment();
-    uint256 orderId = _orderIdCounter.current();
-
-    orders[orderId] = Order({
-      orderType: 0,
-      tokenId: tokenId,
-      tokenContract: tokenContract,
-      tokenOwner: payable(tokenOwner),
-      price: price,
-      reservePrice: 0,
-      duration: 0,
-      bidder: payable(address(0)),
-      currency: currency
-    });
-
-    IERC721Upgradeable(tokenContract).safeTransferFrom(
-      tokenOwner,
-      address(this),
-      tokenId
-    );
-
-    emit OrderCreated(
-      orderId,
+    uint256 orderId = _createOrder(
       0,
       tokenId,
       tokenContract,
-      tokenOwner,
       price,
       0,
       0,
@@ -181,7 +144,19 @@ contract Market is
     uint256 reservePrice,
     uint256 duration,
     address currency
-  ) public override nonReentrant returns (uint256) {}
+  ) public override nonReentrant returns (uint256) {
+    uint256 orderId = _createOrder(
+      1,
+      tokenId,
+      tokenContract,
+      0,
+      reservePrice,
+      duration,
+      currency
+    );
+
+    return orderId;
+  }
 
   function createBidOrder(uint256 orderId, uint256 price)
     public
@@ -241,7 +216,69 @@ contract Market is
 
   /* ========== INTERNAL ========== */
 
-  function _createOrder() internal {}
+  function _createOrder(
+    uint8 orderType,
+    uint256 tokenId,
+    address tokenContract,
+    uint256 price,
+    uint256 reservePrice,
+    uint256 duration,
+    address currency
+  ) internal returns (uint256) {
+    require(
+      IERC165Upgradeable(tokenContract).supportsInterface(ERC721InterfaceId),
+      "Market: tokenContract does not support ERC721 interface"
+    );
+
+    address tokenOwner = IERC721Upgradeable(tokenContract).ownerOf(tokenId);
+    require(
+      msg.sender == IERC721Upgradeable(tokenContract).getApproved(tokenId) ||
+        msg.sender == tokenOwner,
+      "Market: Caller must be approved or owner for tokenId"
+    );
+
+    if (orderType == 0) {
+      require(price > 0, "Market: Price cannot be zero");
+    } else {
+      require(reservePrice > 0, "Market: reservePrice cannot be zero");
+      require(duration > 0, "Market: Duration cannot be zero");
+    }
+
+    _orderIdCounter.increment();
+    uint256 orderId = _orderIdCounter.current();
+
+    orders[orderId] = Order({
+      orderType: orderType,
+      tokenId: tokenId,
+      tokenContract: tokenContract,
+      tokenOwner: payable(tokenOwner),
+      price: price,
+      reservePrice: reservePrice,
+      duration: duration,
+      bidder: payable(address(0)),
+      currency: currency
+    });
+
+    IERC721Upgradeable(tokenContract).safeTransferFrom(
+      tokenOwner,
+      address(this),
+      tokenId
+    );
+
+    emit OrderCreated(
+      orderId,
+      orderType,
+      tokenId,
+      tokenContract,
+      tokenOwner,
+      price,
+      reservePrice,
+      duration,
+      currency
+    );
+
+    return orderId;
+  }
 
   function _checkRoyalties(address tokenContract) internal view returns (bool) {
     bool success = IERC165Upgradeable(tokenContract).supportsInterface(

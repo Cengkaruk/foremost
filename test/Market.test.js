@@ -677,4 +677,171 @@ describe("Market", function () {
       expect(currentOrder.price).to.eq(newPrice);
     });
   });
+
+  describe("Create auction order", async function () {
+    let market;
+
+    beforeEach(async function () {
+      market = await deploy();
+
+      const accounts = await ethers.getSigners();
+      await nfts.test.safeMint(accounts[0].address);
+
+      await nfts.test.setApprovalForAll(
+        market.address,
+        true
+      );
+    });
+
+    it("should revert for unsupported ERC721", async function () {
+      const reservePrice = utils.parseEther("1");
+      const duration = 60 * 60 * 24;
+      const auctionOrder = market.createAuctionOrder(
+        1,
+        nfts.bad.address,
+        reservePrice,
+        duration,
+        ethers.constants.AddressZero
+      );
+      
+      expect(auctionOrder)
+        .eventually
+        .rejectedWith("Market: tokenContract does not support ERC721 interface");
+    });
+
+    it("should revert for non owner or approved", async function () {
+      const reservePrice = utils.parseEther("1");
+      const duration = 60 * 60 * 24;
+      const accounts = await ethers.getSigners();
+      const auctionOrder = market.connect(accounts[1]).createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        ethers.constants.AddressZero
+      );
+    
+      expect(auctionOrder)
+        .eventually
+        .rejectedWith("Market: Caller must be approved or owner for tokenId");
+    });
+
+    it("should revert when tokenId does not exist", async function () {
+      const reservePrice = utils.parseEther("1");
+      const duration = 60 * 60 * 24;
+      const auctionOrder = market.createAuctionOrder(
+        100,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        ethers.constants.AddressZero
+      );
+    
+      expect(auctionOrder)
+        .eventually
+        .rejectedWith("ERC721: owner query for nonexistent token");
+    });
+
+    it("should revert when reservePrice is zero", async function () {
+      const duration = 60 * 60 * 24;
+      const auctionOrder = market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        0,
+        duration,
+        ethers.constants.AddressZero
+      );
+    
+      expect(auctionOrder)
+        .eventually
+        .rejectedWith("Market: reservePrice cannot be zero");
+    });
+
+    it("should revert when duration is zero", async function () {
+      const reservePrice = utils.parseEther("1");
+      const auctionOrder = market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        0,
+        ethers.constants.AddressZero
+      );
+    
+      expect(auctionOrder)
+        .eventually
+        .rejectedWith("Market: Duration cannot be zero");
+    });
+
+    it("should create an auction order", async function () {
+      const reservePrice = utils.parseEther("1");
+      const duration = 60 * 60 * 24;
+      const block = await ethers.provider.getBlockNumber();
+      await market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        ethers.constants.AddressZero
+      );
+
+      const events = await market.queryFilter(
+        market.filters.OrderCreated(),
+        block
+      );
+      expect(events.length).eq(1);
+
+      const currentOrder = await market.orders(1);
+      const expectedId = BigNumber.from("1");
+      const log = market.interface.parseLog(events[0]);
+      expect(log.name).to.eq("OrderCreated");
+      expect(log.args.orderId).to.eq(expectedId);
+      expect(log.args.orderType).to.eq(currentOrder.orderType);
+      expect(log.args.tokenId).to.eq(currentOrder.tokenId);
+      expect(log.args.tokenContract).to.eq(currentOrder.tokenContract);
+      expect(log.args.tokenOwner).to.eq(currentOrder.tokenOwner);
+      expect(log.args.price).to.eq(currentOrder.price);
+      expect(log.args.reservePrice).to.eq(currentOrder.reservePrice);
+      expect(log.args.duration).to.eq(currentOrder.duration);
+      expect(log.args.currency).to.eq(currentOrder.currency);
+
+      const tokenOwner = await nfts.test.ownerOf(1);
+      expect(tokenOwner).is.equal(market.address);
+    });
+
+    it("should create an auction order with ERC20", async function () {
+      const reservePrice = BigNumber.from("1000000");
+      const duration = 60 * 60 * 24;
+      const block = await ethers.provider.getBlockNumber();
+      await market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        idrt.address
+      );
+
+      const events = await market.queryFilter(
+        market.filters.OrderCreated(),
+        block
+      );
+      expect(events.length).eq(1);
+
+      const currentOrder = await market.orders(1);
+      const expectedId = BigNumber.from("1");
+      const log = market.interface.parseLog(events[0]);
+      expect(log.name).to.eq("OrderCreated");
+      expect(log.args.orderId).to.eq(expectedId);
+      expect(log.args.orderType).to.eq(currentOrder.orderType);
+      expect(log.args.tokenId).to.eq(currentOrder.tokenId);
+      expect(log.args.tokenContract).to.eq(currentOrder.tokenContract);
+      expect(log.args.tokenOwner).to.eq(currentOrder.tokenOwner);
+      expect(log.args.price).to.eq(currentOrder.price);
+      expect(log.args.reservePrice).to.eq(currentOrder.reservePrice);
+      expect(log.args.duration).to.eq(currentOrder.duration);
+      expect(log.args.currency).to.eq(currentOrder.currency);
+
+      const tokenOwner = await nfts.test.ownerOf(1);
+      expect(tokenOwner).is.equal(market.address);
+    });
+  });
 });
