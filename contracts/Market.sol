@@ -209,7 +209,27 @@ contract Market is
     delete orders[orderId];
   }
 
-  function updateSellOrder(uint256 orderId, uint256 price) public override {}
+  function updateSellOrder(uint256 orderId, uint256 price)
+    public
+    override
+    orderExists(orderId)
+    onlyOrderCreator(orderId)
+  {
+    require(price > 0, "Market: Price cannot be zero");
+
+    orders[orderId].price = price;
+
+    Order memory _order = orders[orderId];
+    emit OrderUpdated(
+      orderId,
+      _order.orderType,
+      _order.tokenId,
+      _order.tokenContract,
+      _order.price,
+      _order.reservePrice,
+      _order.currency
+    );
+  }
 
   function updateAuctionOrder(uint256 orderId, uint256 reservePrice)
     public

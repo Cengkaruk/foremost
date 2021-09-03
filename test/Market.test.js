@@ -594,4 +594,87 @@ describe("Market", function () {
       expect(tokenOwner).is.equal(accounts[0].address);
     });
   });
+
+  describe("Update sell order", async function () {
+    let market;
+
+    beforeEach(async function () {
+      market = await deploy();
+
+      const accounts = await ethers.getSigners();
+      await nfts.test.safeMint(accounts[0].address);
+
+      await nfts.test.setApprovalForAll(
+        market.address,
+        true
+      );
+    });
+
+    it("should revert when orderId not exist", async function () {
+      const price = utils.parseEther("1");
+      await market.createSellOrder(
+        1,
+        nfts.test.address,
+        price,
+        ethers.constants.AddressZero
+      );
+
+      const newPrice = utils.parseEther("2");
+      const updateSellOrder = market.updateSellOrder(2, newPrice);
+
+      expect(updateSellOrder)
+        .eventually
+        .rejectedWith("Market: The order does not exist");
+    });
+
+    it("should revert when not order creator", async function () {
+      const price = utils.parseEther("1");
+      await market.createSellOrder(
+        1,
+        nfts.test.address,
+        price,
+        ethers.constants.AddressZero
+      );
+      
+      const accounts = await ethers.getSigners();
+      const newPrice = utils.parseEther("2");
+      const updateSellOrder = market.connect(accounts[1]).updateSellOrder(1, newPrice);
+
+      expect(updateSellOrder)
+        .eventually
+        .rejectedWith("Market: Only can be called by order creator");
+    });
+
+    it("should revert when price is zero", async function () {
+      const price = utils.parseEther("1");
+      await market.createSellOrder(
+        1,
+        nfts.test.address,
+        price,
+        ethers.constants.AddressZero
+      );
+      
+      const updateSellOrder = market.updateSellOrder(1, 0);
+    
+      expect(updateSellOrder)
+        .eventually
+        .rejectedWith("Market: Price cannot be zero");
+    });
+
+    it("should update the order", async function () {
+      const price = utils.parseEther("1");
+      await market.createSellOrder(
+        1,
+        nfts.test.address,
+        price,
+        ethers.constants.AddressZero
+      );
+
+      const newPrice = utils.parseEther("2");
+      await market.updateSellOrder(1, newPrice);
+
+      const currentOrder = await market.orders(1);
+      expect(currentOrder.price).to.eq(newPrice);
+    });
+  });
 });
