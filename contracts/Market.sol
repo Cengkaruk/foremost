@@ -118,19 +118,20 @@ contract Market is
     nonReentrant
     orderExists(orderId)
   {
+    orders[orderId].bidder = payable(msg.sender);
+    orders[orderId].price = price;
+
     Order memory _order = orders[orderId];
 
-    _order.bidder = payable(msg.sender);
-
-    _handleIncoming(price, _order.currency);
+    _handleIncoming(_order.price, _order.currency);
 
     emit OrderBuyCreated(
       orderId,
       _order.tokenId,
       _order.tokenContract,
       _order.tokenOwner,
-      msg.sender,
-      price,
+      _order.bidder,
+      _order.price,
       _order.currency
     );
 
@@ -141,7 +142,7 @@ contract Market is
         _order.tokenId
       )
     {} catch {
-      _handleOutgoing(msg.sender, price, _order.currency);
+      _handleOutgoing(msg.sender, _order.price, _order.currency);
       return;
     }
 
@@ -153,7 +154,7 @@ contract Market is
         _order.tokenId,
         _order.tokenContract,
         _order.tokenOwner,
-        price,
+        _order.price,
         _order.currency
       );
 
@@ -163,8 +164,8 @@ contract Market is
       _order.tokenId,
       _order.tokenContract,
       _order.tokenOwner,
-      msg.sender,
-      price,
+      _order.bidder,
+      _order.price,
       _marketPortion,
       _creatorPortion,
       _ownerPortion,
