@@ -9,9 +9,11 @@ interface IMarket {
     address tokenContract;
     address payable tokenOwner;
     uint256 price;
+    address payable bidder;
     uint256 reservePrice;
     uint256 duration;
-    address payable bidder;
+    uint256 extensionDuration;
+    uint256 endTime;
     address currency;
   }
 
@@ -24,6 +26,7 @@ interface IMarket {
     uint256 price,
     uint256 reservePrice,
     uint256 duration,
+    uint256 extensionDuration,
     address currency
   );
 
@@ -99,6 +102,7 @@ interface IMarket {
     address tokenContract,
     uint256 reservePrice,
     uint256 duration,
+    uint256 extensionDuration,
     address currency
   ) external returns (uint256);
 

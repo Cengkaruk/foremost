@@ -68,6 +68,7 @@ contract Market is
       price,
       0,
       0,
+      0,
       currency
     );
 
@@ -143,6 +144,7 @@ contract Market is
     address tokenContract,
     uint256 reservePrice,
     uint256 duration,
+    uint256 extensionDuration,
     address currency
   ) public override nonReentrant returns (uint256) {
     uint256 orderId = _createOrder(
@@ -152,6 +154,7 @@ contract Market is
       0,
       reservePrice,
       duration,
+      extensionDuration,
       currency
     );
 
@@ -223,6 +226,7 @@ contract Market is
     uint256 price,
     uint256 reservePrice,
     uint256 duration,
+    uint256 extensionDuration,
     address currency
   ) internal returns (uint256) {
     require(
@@ -253,9 +257,11 @@ contract Market is
       tokenContract: tokenContract,
       tokenOwner: payable(tokenOwner),
       price: price,
+      bidder: payable(address(0)),
       reservePrice: reservePrice,
       duration: duration,
-      bidder: payable(address(0)),
+      extensionDuration: extensionDuration,
+      endTime: 0,
       currency: currency
     });
 
@@ -274,6 +280,7 @@ contract Market is
       price,
       reservePrice,
       duration,
+      extensionDuration,
       currency
     );
 
