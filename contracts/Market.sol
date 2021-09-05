@@ -75,7 +75,7 @@ contract Market is
     return orderId;
   }
 
-  function createBuyOrder(uint256 orderId, uint256 price)
+  function createBuyOrder(uint256 orderId)
     public
     payable
     override

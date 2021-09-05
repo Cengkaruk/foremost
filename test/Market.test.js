@@ -280,7 +280,7 @@ describe("Market", function () {
       const creatorLastBalance = await ethers.provider.getBalance(accounts[0].address);
       const treasuryLastBalance = await ethers.provider.getBalance(accounts[9].address);
   
-      await market.connect(accounts[1]).createBuyOrder(1, price, {
+      await market.connect(accounts[1]).createBuyOrder(1, {
         value: price
       });
 
@@ -327,7 +327,7 @@ describe("Market", function () {
       const creatorLastBalance = await idrt.balanceOf(accounts[0].address);
       const treasuryLastBalance = await idrt.balanceOf(accounts[9].address);
 
-      await market.connect(accounts[1]).createBuyOrder(1, price);
+      await market.connect(accounts[1]).createBuyOrder(1);
 
       const currentBalance = await idrt.balanceOf(accounts[2].address);
       const expectedProfit = BigNumber.from("900000");
@@ -356,7 +356,7 @@ describe("Market", function () {
 
       const accounts = await ethers.getSigners();
       const lowerPrice = utils.parseEther("0.9");
-      const buyOrder = market.connect(accounts[1]).createBuyOrder(1, price, {
+      const buyOrder = market.connect(accounts[1]).createBuyOrder(1, {
         value: lowerPrice
       });
 
@@ -379,7 +379,7 @@ describe("Market", function () {
       const lastBalance = await ethers.provider.getBalance(accounts[0].address);
       const currentOrder = await market.orders(1);
   
-      await market.connect(accounts[1]).createBuyOrder(1, price, {
+      await market.connect(accounts[1]).createBuyOrder(1, {
         value: price
       });
 
@@ -466,7 +466,7 @@ describe("Market", function () {
       const lastBalance = await idrt.balanceOf(accounts[0].address);
       const treasuryLastBalance = await idrt.balanceOf(accounts[9].address);
 
-      await market.connect(accounts[1]).createBuyOrder(1, price);
+      await market.connect(accounts[1]).createBuyOrder(1);
 
       const buyEvents = await market.queryFilter(
         market.filters.OrderBuyCreated(),

@@ -95,7 +95,7 @@ interface IMarket {
     address currency
   ) external returns (uint256);
 
-  function createBuyOrder(uint256 orderId, uint256 price) external payable;
+  function createBuyOrder(uint256 orderId) external payable;
 
   function createAuctionOrder(
     uint256 tokenId,
