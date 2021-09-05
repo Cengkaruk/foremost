@@ -447,6 +447,27 @@ describe("Market", function () {
       await createBuyOrderRoyalty('royaltyV2');
     });
 
+    it("should revert when ERC20 token transfer amount exceeds balance", async function () {
+      const price = BigNumber.from("1000000");
+      await market.createSellOrder(
+        1,
+        nfts.test.address,
+        price,
+        idrt.address
+      );
+
+      const accounts = await ethers.getSigners();
+
+      const balance = BigNumber.from("500000");
+      await idrt.mint(accounts[1].address, balance);
+      await idrt.connect(accounts[1]).approve(market.address, balance);
+
+      const createBuyOrder = market.connect(accounts[1]).createBuyOrder(1);
+      expect(createBuyOrder)
+        .eventually
+        .rejectedWith("ERC20: transfer amount exceeds balance");
+    });
+
     it("should able to buy with ERC20 token", async function () {
       const price = BigNumber.from("1000000");
       await market.createSellOrder(
