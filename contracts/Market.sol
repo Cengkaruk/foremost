@@ -82,10 +82,9 @@ contract Market is
     nonReentrant
     orderExists(orderId)
   {
-    orders[orderId].bidder = payable(msg.sender);
-    orders[orderId].price = price;
+    Order storage _order = orders[orderId];
 
-    Order memory _order = orders[orderId];
+    _order.bidder = payable(msg.sender);
 
     _handleIncoming(_order.price, _order.currency);
 
@@ -106,7 +105,7 @@ contract Market is
         _order.tokenId
       )
     {} catch {
-      _handleOutgoing(msg.sender, _order.price, _order.currency);
+      _handleOutgoing(_order.bidder, _order.price, _order.currency);
       return;
     }
 
@@ -175,7 +174,7 @@ contract Market is
     orderExists(orderId)
     onlyOrderCreator(orderId)
   {
-    Order memory _order = orders[orderId];
+    Order storage _order = orders[orderId];
 
     IERC721Upgradeable(_order.tokenContract).safeTransferFrom(
       address(this),
@@ -196,9 +195,9 @@ contract Market is
   {
     require(price > 0, "Market: Price cannot be zero");
 
-    orders[orderId].price = price;
+    Order storage _order = orders[orderId];
+    _order.price = price;
 
-    Order memory _order = orders[orderId];
     emit OrderUpdated(
       orderId,
       _order.orderType,
