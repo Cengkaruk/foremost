@@ -14,6 +14,7 @@ interface IMarket {
     uint256 duration;
     uint256 extensionDuration;
     uint256 endTime;
+    uint256 minBidIncrement;
     address currency;
   }
 
@@ -27,6 +28,7 @@ interface IMarket {
     uint256 reservePrice,
     uint256 duration,
     uint256 extensionDuration,
+    uint256 minBidIncrement,
     address currency
   );
 
@@ -103,6 +105,7 @@ interface IMarket {
     uint256 reservePrice,
     uint256 duration,
     uint256 extensionDuration,
+    uint256 minBidIncrement,
     address currency
   ) external returns (uint256);
 

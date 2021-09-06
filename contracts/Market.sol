@@ -62,10 +62,10 @@ contract Market is
     address currency
   ) public override nonReentrant returns (uint256) {
     uint256 orderId = _createOrder(
-      0,
       tokenId,
       tokenContract,
       price,
+      0,
       0,
       0,
       0,
@@ -144,16 +144,17 @@ contract Market is
     uint256 reservePrice,
     uint256 duration,
     uint256 extensionDuration,
+    uint256 minBidIncrement,
     address currency
   ) public override nonReentrant returns (uint256) {
     uint256 orderId = _createOrder(
-      1,
       tokenId,
       tokenContract,
       0,
       reservePrice,
       duration,
       extensionDuration,
+      minBidIncrement,
       currency
     );
 
@@ -219,13 +220,13 @@ contract Market is
   /* ========== INTERNAL ========== */
 
   function _createOrder(
-    uint8 orderType,
     uint256 tokenId,
     address tokenContract,
     uint256 price,
     uint256 reservePrice,
     uint256 duration,
     uint256 extensionDuration,
+    uint256 minBidIncrement,
     address currency
   ) internal returns (uint256) {
     require(
@@ -240,11 +241,15 @@ contract Market is
       "Market: Caller must be approved or owner for tokenId"
     );
 
+    uint8 orderType = reservePrice <= 0 && duration <= 0 ? 0 : 1;
     if (orderType == 0) {
       require(price > 0, "Market: Price cannot be zero");
     } else {
       require(reservePrice > 0, "Market: reservePrice cannot be zero");
       require(duration > 0, "Market: Duration cannot be zero");
+
+      extensionDuration = extensionDuration == 0 ? 60 * 15 : extensionDuration;
+      minBidIncrement = minBidIncrement == 0 ? 100 : minBidIncrement;
     }
 
     _orderIdCounter.increment();
@@ -261,6 +266,7 @@ contract Market is
       duration: duration,
       extensionDuration: extensionDuration,
       endTime: 0,
+      minBidIncrement: minBidIncrement,
       currency: currency
     });
 
@@ -280,6 +286,7 @@ contract Market is
       reservePrice,
       duration,
       extensionDuration,
+      minBidIncrement,
       currency
     );
 

@@ -720,12 +720,14 @@ describe("Market", function () {
       const reservePrice = utils.parseEther("1");
       const duration = 60 * 60 * 24;
       const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
       const auctionOrder = market.createAuctionOrder(
         1,
         nfts.bad.address,
         reservePrice,
         duration,
         extensionDuration,
+        minBidIncrement,
         ethers.constants.AddressZero
       );
       
@@ -738,6 +740,7 @@ describe("Market", function () {
       const reservePrice = utils.parseEther("1");
       const duration = 60 * 60 * 24;
       const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
       const accounts = await ethers.getSigners();
       const auctionOrder = market.connect(accounts[1]).createAuctionOrder(
         1,
@@ -745,6 +748,7 @@ describe("Market", function () {
         reservePrice,
         duration,
         extensionDuration,
+        minBidIncrement,
         ethers.constants.AddressZero
       );
     
@@ -757,12 +761,14 @@ describe("Market", function () {
       const reservePrice = utils.parseEther("1");
       const duration = 60 * 60 * 24;
       const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
       const auctionOrder = market.createAuctionOrder(
         100,
         nfts.test.address,
         reservePrice,
         duration,
         extensionDuration,
+        minBidIncrement,
         ethers.constants.AddressZero
       );
     
@@ -774,12 +780,14 @@ describe("Market", function () {
     it("should revert when reservePrice is zero", async function () {
       const duration = 60 * 60 * 24;
       const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
       const auctionOrder = market.createAuctionOrder(
         1,
         nfts.test.address,
         0,
         duration,
         extensionDuration,
+        minBidIncrement,
         ethers.constants.AddressZero
       );
     
@@ -791,12 +799,14 @@ describe("Market", function () {
     it("should revert when duration is zero", async function () {
       const reservePrice = utils.parseEther("1");
       const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
       const auctionOrder = market.createAuctionOrder(
         1,
         nfts.test.address,
         reservePrice,
         0,
         extensionDuration,
+        minBidIncrement,
         ethers.constants.AddressZero
       );
     
@@ -809,6 +819,7 @@ describe("Market", function () {
       const reservePrice = utils.parseEther("1");
       const duration = 60 * 60 * 24;
       const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
       const block = await ethers.provider.getBlockNumber();
       await market.createAuctionOrder(
         1,
@@ -816,6 +827,46 @@ describe("Market", function () {
         reservePrice,
         duration,
         extensionDuration,
+        minBidIncrement,
+        ethers.constants.AddressZero
+      );
+
+      const events = await market.queryFilter(
+        market.filters.OrderCreated(),
+        block
+      );
+      expect(events.length).eq(1);
+
+      const currentOrder = await market.orders(1);
+      const expectedId = BigNumber.from("1");
+      const log = market.interface.parseLog(events[0]);
+      expect(log.name).to.eq("OrderCreated");
+      expect(log.args.orderId).to.eq(expectedId);
+      expect(log.args.orderType).to.eq(currentOrder.orderType);
+      expect(log.args.tokenId).to.eq(currentOrder.tokenId);
+      expect(log.args.tokenContract).to.eq(currentOrder.tokenContract);
+      expect(log.args.tokenOwner).to.eq(currentOrder.tokenOwner);
+      expect(log.args.price).to.eq(currentOrder.price);
+      expect(log.args.reservePrice).to.eq(currentOrder.reservePrice);
+      expect(log.args.duration).to.eq(currentOrder.duration);
+      expect(log.args.extensionDuration).to.eq(currentOrder.extensionDuration);
+      expect(log.args.currency).to.eq(currentOrder.currency);
+
+      const tokenOwner = await nfts.test.ownerOf(1);
+      expect(tokenOwner).is.equal(market.address);
+    });
+
+    it("should create an auction order with default extensionDuration and minBidIncrement", async function () {
+      const reservePrice = utils.parseEther("1");
+      const duration = 60 * 60 * 24;
+      const block = await ethers.provider.getBlockNumber();
+      await market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        0,
+        0,
         ethers.constants.AddressZero
       );
 
@@ -848,6 +899,7 @@ describe("Market", function () {
       const reservePrice = BigNumber.from("1000000");
       const duration = 60 * 60 * 24;
       const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
       const block = await ethers.provider.getBlockNumber();
       await market.createAuctionOrder(
         1,
@@ -855,6 +907,7 @@ describe("Market", function () {
         reservePrice,
         duration,
         extensionDuration,
+        minBidIncrement,
         idrt.address
       );
 
