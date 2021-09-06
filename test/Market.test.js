@@ -1436,4 +1436,112 @@ describe("Market", function () {
       expect(currentBalance.sub(lastBalance)).to.eq(expectedRefund);
     });
   });
+
+  describe("Cancel auction order", async function () {
+    let market;
+
+    beforeEach(async function () {
+      market = await deploy();
+
+      const accounts = await ethers.getSigners();
+      await nfts.test.safeMint(accounts[0].address);
+
+      await nfts.test.setApprovalForAll(
+        market.address,
+        true
+      );
+    });
+
+    it("should revert when orderId not exist", async function () {
+      const reservePrice = utils.parseEther("1");
+      const duration = 60 * 60 * 24;
+      const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
+      await market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        extensionDuration,
+        minBidIncrement,
+        ethers.constants.AddressZero
+      );
+
+      const cancelOrder = market.cancelOrder(2);
+
+      expect(cancelOrder)
+        .eventually
+        .rejectedWith("Market: The order does not exist");
+    });
+
+    it("should revert when not order creator", async function () {
+      const reservePrice = utils.parseEther("1");
+      const duration = 60 * 60 * 24;
+      const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
+      await market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        extensionDuration,
+        minBidIncrement,
+        ethers.constants.AddressZero
+      );
+      
+      const accounts = await ethers.getSigners();
+      const cancelOrder = market.connect(accounts[1]).cancelOrder(1);
+
+      expect(cancelOrder)
+        .eventually
+        .rejectedWith("Market: Only can be called by order creator");
+    });
+
+    it("should cancel the order", async function () {
+      const reservePrice = utils.parseEther("1");
+      const duration = 60 * 60 * 24;
+      const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
+      await market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        extensionDuration,
+        minBidIncrement,
+        ethers.constants.AddressZero
+      );
+
+      await market.cancelOrder(1);
+
+      const accounts = await ethers.getSigners();
+      const tokenOwner = await nfts.test.ownerOf(1);
+      expect(tokenOwner).is.equal(accounts[0].address);
+    });
+
+    it("should revert when auction in progress", async function () {
+      const reservePrice = utils.parseEther("1");
+      const duration = 60 * 60 * 24;
+      const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
+      await market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        extensionDuration,
+        minBidIncrement,
+        ethers.constants.AddressZero
+      );
+
+      const accounts = await ethers.getSigners();
+      await market.connect(accounts[1]).createBidOrder(1, reservePrice, { value: reservePrice });
+
+      const cancelOrder = market.cancelOrder(1);
+
+      expect(cancelOrder)
+        .eventually
+        .rejectedWith("Market: Auction in progress");
+    });
+  });
 });

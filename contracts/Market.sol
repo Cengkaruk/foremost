@@ -243,6 +243,10 @@ contract Market is
   {
     Order storage _order = orders[orderId];
 
+    if (_order.reservePrice > 0) {
+      require(_order.endTime == 0, "Market: Auction in progress");
+    }
+
     IERC721Upgradeable(_order.tokenContract).safeTransferFrom(
       address(this),
       _order.tokenOwner,
