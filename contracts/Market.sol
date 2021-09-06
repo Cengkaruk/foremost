@@ -166,7 +166,73 @@ contract Market is
     payable
     override
     nonReentrant
-  {}
+    orderExists(orderId)
+  {
+    Order storage _order = orders[orderId];
+
+    if (_order.endTime == 0) {
+      if (_order.currency == address(0)) {
+        require(
+          (_order.reservePrice <= msg.value && _order.reservePrice <= price),
+          "Market: The minimum bid must match the reserve price"
+        );
+      } else {
+        require(
+          _order.reservePrice <= price,
+          "Market: The minimum bid must match the reserve price"
+        );
+      }
+    } else {
+      require(_order.endTime > block.timestamp, "Market: Auction is over");
+      require(
+        _order.bidder != msg.sender,
+        "Market: You already at highest bid"
+      );
+
+      uint256 minBidPrice = ((_order.price * _order.minBidIncrement) / 10000) +
+        _order.price;
+      if (_order.currency == address(0)) {
+        require((msg.value >= minBidPrice), "Market: Bid price to low");
+      } else {
+        require((price >= minBidPrice), "Market: Bid price to low");
+      }
+    }
+
+    bool extendedDuration = false;
+    if (_order.endTime == 0) {
+      _handleIncoming(price, _order.currency);
+
+      _order.price = price;
+      _order.bidder = payable(msg.sender);
+      _order.endTime = block.timestamp + _order.duration;
+    } else {
+      _handleIncoming(price, _order.currency);
+
+      uint256 originalPrice = _order.price;
+      address payable originalBidder = _order.bidder;
+
+      _order.price = price;
+      _order.bidder = payable(msg.sender);
+
+      if (_order.endTime - block.timestamp < _order.extensionDuration) {
+        _order.endTime = block.timestamp + _order.extensionDuration;
+        extendedDuration = true;
+      }
+
+      _handleOutgoing(originalBidder, originalPrice, _order.currency);
+    }
+
+    emit OrderBidCreated(
+      orderId,
+      _order.tokenId,
+      _order.tokenContract,
+      _order.tokenOwner,
+      _order.bidder,
+      _order.price,
+      _order.currency,
+      extendedDuration
+    );
+  }
 
   function cancelOrder(uint256 orderId)
     public

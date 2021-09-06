@@ -936,4 +936,504 @@ describe("Market", function () {
       expect(tokenOwner).is.equal(market.address);
     });
   });
+
+  describe("Create bid auction order", async function () {
+    let market;
+
+    beforeEach(async function () {
+      market = await deploy();
+
+      const accounts = await ethers.getSigners();
+      await nfts.test.safeMint(accounts[0].address);
+
+      await nfts.test.setApprovalForAll(
+        market.address,
+        true
+      );
+    });
+    
+    it("should revert when send ETH value lower than price and reservePrice", async function () {
+      const reservePrice = utils.parseEther("1");
+      const duration = 60 * 60 * 24;
+      const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
+      await market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        extensionDuration,
+        minBidIncrement,
+        ethers.constants.AddressZero
+      );
+
+      const lowerPrice = utils.parseEther("0.1");
+      const bidOrder = market.createBidOrder(1, reservePrice, { value: lowerPrice });
+      
+      expect(bidOrder)
+        .eventually
+        .rejectedWith("Market: The minimum bid must match the reserve price");
+    });
+
+    it("should revert when auction is over", async function () {
+      const reservePrice = utils.parseEther("1");
+      const duration = 1;
+      const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
+      await market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        extensionDuration,
+        minBidIncrement,
+        ethers.constants.AddressZero
+      );
+
+      await market.createBidOrder(1, reservePrice, { value: reservePrice });
+      
+      const accounts = await ethers.getSigners();
+      const secondBidPrice = utils.parseEther("1.1");
+      const bidOrder = market.connect(accounts[1]).createBidOrder(
+        1,
+        secondBidPrice,
+        { value: secondBidPrice }
+      );
+
+      expect(bidOrder)
+        .eventually
+        .rejectedWith("Market: Auction is over");
+    });
+
+    it("should revert when bidder already at highest bid", async function () {
+      const reservePrice = utils.parseEther("1");
+      const duration = 60 * 60 * 24;
+      const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
+      await market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        extensionDuration,
+        minBidIncrement,
+        ethers.constants.AddressZero
+      );
+
+      await market.createBidOrder(1, reservePrice, { value: reservePrice });
+      
+      const secondBidPrice = utils.parseEther("1.1");
+      const bidOrder = market.createBidOrder(
+        1,
+        secondBidPrice,
+        { value: secondBidPrice }
+      );
+
+      expect(bidOrder)
+        .eventually
+        .rejectedWith("Market: You already at highest bid");
+    });
+
+    it("should revert when send ETH value lower than highest bid", async function () {
+      const reservePrice = utils.parseEther("1");
+      const duration = 60 * 60 * 24;
+      const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
+      await market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        extensionDuration,
+        minBidIncrement,
+        ethers.constants.AddressZero
+      );
+
+      await market.createBidOrder(1, reservePrice, { value: reservePrice });
+      
+      const accounts = await ethers.getSigners();
+      const secondBidPrice = utils.parseEther("0.9");
+      const bidOrder = market.connect(accounts[1]).createBidOrder(
+        1,
+        secondBidPrice,
+        { value: secondBidPrice }
+      );
+
+      expect(bidOrder)
+        .eventually
+        .rejectedWith("Market: Bid price to low");
+    });
+
+    it("should be able to bid for first time", async function () {
+      const reservePrice = utils.parseEther("1");
+      const duration = 60 * 60 * 24;
+      const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
+      await market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        extensionDuration,
+        minBidIncrement,
+        ethers.constants.AddressZero
+      );
+
+      const block = await ethers.provider.getBlockNumber();
+      await market.createBidOrder(1, reservePrice, { value: reservePrice });
+
+      const events = await market.queryFilter(
+        market.filters.OrderBidCreated(),
+        block
+      );
+      expect(events.length).eq(1);
+
+      const currentOrder = await market.orders(1);
+      const log = market.interface.parseLog(events[0]);
+      expect(log.name).to.eq("OrderBidCreated");
+      expect(log.args.bidder).to.eq(currentOrder.bidder);
+      expect(log.args.price).to.eq(currentOrder.price);
+      expect(log.args.extended).to.eq(false);
+    });
+
+    it("should be able to bid for second time", async function () {
+      const reservePrice = utils.parseEther("1");
+      const duration = 60 * 60 * 24;
+      const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
+      await market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        extensionDuration,
+        minBidIncrement,
+        ethers.constants.AddressZero
+      );
+
+      const block = await ethers.provider.getBlockNumber();
+      await market.createBidOrder(1, reservePrice, { value: reservePrice });
+
+      const accounts = await ethers.getSigners();
+      const secondBidPrice = utils.parseEther("1.1");
+      await market.connect(accounts[1]).createBidOrder(1, secondBidPrice, { value: secondBidPrice });
+
+      const events = await market.queryFilter(
+        market.filters.OrderBidCreated(),
+        block
+      );
+      expect(events.length).eq(2);
+
+      const currentOrder = await market.orders(1);
+      const log = market.interface.parseLog(events[1]);
+      expect(log.name).to.eq("OrderBidCreated");
+      expect(log.args.bidder).to.eq(currentOrder.bidder);
+      expect(log.args.price).to.eq(currentOrder.price);
+      expect(log.args.extended).to.eq(false);
+    });
+
+    it("should be able to extend the duration", async function () {
+      const reservePrice = utils.parseEther("1");
+      const duration = 60 * 15;
+      const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
+      await market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        extensionDuration,
+        minBidIncrement,
+        ethers.constants.AddressZero
+      );
+
+      const block = await ethers.provider.getBlockNumber();
+      await market.createBidOrder(1, reservePrice, { value: reservePrice });
+
+      const accounts = await ethers.getSigners();
+      const secondBidPrice = utils.parseEther("1.1");
+      await market.connect(accounts[1]).createBidOrder(1, secondBidPrice, { value: secondBidPrice });
+
+      const events = await market.queryFilter(
+        market.filters.OrderBidCreated(),
+        block
+      );
+      expect(events.length).eq(2);
+
+      const currentOrder = await market.orders(1);
+      const log = market.interface.parseLog(events[1]);
+      expect(log.name).to.eq("OrderBidCreated");
+      expect(log.args.bidder).to.eq(currentOrder.bidder);
+      expect(log.args.price).to.eq(currentOrder.price);
+      expect(log.args.extended).to.eq(true);
+    });
+
+    it("should be able refund to first bidder", async function () {
+      const reservePrice = utils.parseEther("1");
+      const duration = 60 * 60 * 24;
+      const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
+      await market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        extensionDuration,
+        minBidIncrement,
+        ethers.constants.AddressZero
+      );
+
+      const block = await ethers.provider.getBlockNumber();
+      const accounts = await ethers.getSigners();
+      await market.connect(accounts[1]).createBidOrder(1, reservePrice, { value: reservePrice });
+
+      const lastBalance = await ethers.provider.getBalance(accounts[1].address);
+
+      const secondBidPrice = utils.parseEther("1.1");
+      await market.connect(accounts[2]).createBidOrder(1, secondBidPrice, { value: secondBidPrice });
+
+      const currentBalance = await ethers.provider.getBalance(accounts[1].address);
+      const expectedRefund = utils.parseEther("1");
+      expect(currentBalance.sub(lastBalance)).to.eq(expectedRefund);
+    });
+
+    it("should revert when ERC20 token exceeds balance", async function () {
+      const reservePrice = 1000000;
+      const duration = 60 * 60 * 24;
+      const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
+      await market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        extensionDuration,
+        minBidIncrement,
+        idrt.address
+      );
+
+      const accounts = await ethers.getSigners();
+      const balance = BigNumber.from("500000");
+      await idrt.mint(accounts[1].address, balance);
+      await idrt.connect(accounts[1]).approve(market.address, balance);
+
+      const bidOrder = market.connect(accounts[1]).createBidOrder(1, reservePrice);
+      
+      expect(bidOrder)
+        .eventually
+        .rejectedWith("ERC20: transfer amount exceeds balance");
+    });
+
+    it("should revert when ERC20 value lower than reservePrice", async function () {
+      const reservePrice = 1000000;
+      const duration = 60 * 60 * 24;
+      const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
+      await market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        extensionDuration,
+        minBidIncrement,
+        idrt.address
+      );
+
+      const lowerPrice = 500000;
+      const bidOrder = market.createBidOrder(1, lowerPrice);
+      
+      expect(bidOrder)
+        .eventually
+        .rejectedWith("Market: The minimum bid must match the reserve price");
+    });
+
+    it("should revert when ERC20 value lower than highest bid", async function () {
+      const reservePrice = 1000000;
+      const duration = 60 * 60 * 24;
+      const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
+      await market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        extensionDuration,
+        minBidIncrement,
+        idrt.address
+      );
+
+      const accounts = await ethers.getSigners();
+      const balance = BigNumber.from("2000000");
+      await idrt.mint(accounts[1].address, balance);
+      await idrt.connect(accounts[1]).approve(market.address, balance);
+      await idrt.mint(accounts[2].address, balance);
+      await idrt.connect(accounts[2]).approve(market.address, balance);
+
+      const block = await ethers.provider.getBlockNumber();
+      await market.connect(accounts[1]).createBidOrder(1, reservePrice);
+
+      const secondBidPrice = 1000000;
+      const bidOrder = market.connect(accounts[2]).createBidOrder(1, secondBidPrice);
+      
+      expect(bidOrder)
+        .eventually
+        .rejectedWith("Market: Bid price to low");
+    });
+
+    it("should be able to bid with ERC20 for first time", async function () {
+      const reservePrice = 1000000;
+      const duration = 60 * 60 * 24;
+      const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
+      await market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        extensionDuration,
+        minBidIncrement,
+        idrt.address
+      );
+
+      const accounts = await ethers.getSigners();
+      const balance = BigNumber.from("2000000");
+      await idrt.mint(accounts[1].address, balance);
+      await idrt.connect(accounts[1]).approve(market.address, balance);
+
+      const block = await ethers.provider.getBlockNumber();
+      await market.connect(accounts[1]).createBidOrder(1, reservePrice);
+
+      const events = await market.queryFilter(
+        market.filters.OrderBidCreated(),
+        block
+      );
+      expect(events.length).eq(1);
+
+      const currentOrder = await market.orders(1);
+      const log = market.interface.parseLog(events[0]);
+      expect(log.name).to.eq("OrderBidCreated");
+      expect(log.args.bidder).to.eq(currentOrder.bidder);
+      expect(log.args.price).to.eq(currentOrder.price);
+      expect(log.args.extended).to.eq(false);
+    });
+
+    it("should be able to bid with ERC20 for second time", async function () {
+      const reservePrice = 1000000;
+      const duration = 60 * 60 * 24;
+      const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
+      await market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        extensionDuration,
+        minBidIncrement,
+        idrt.address
+      );
+
+      const accounts = await ethers.getSigners();
+      const balance = BigNumber.from("2000000");
+      await idrt.mint(accounts[1].address, balance);
+      await idrt.connect(accounts[1]).approve(market.address, balance);
+      await idrt.mint(accounts[2].address, balance);
+      await idrt.connect(accounts[2]).approve(market.address, balance);
+
+      const block = await ethers.provider.getBlockNumber();
+      await market.connect(accounts[1]).createBidOrder(1, reservePrice);
+
+      const secondBidPrice = 1100000;
+      await market.connect(accounts[2]).createBidOrder(1, secondBidPrice);
+
+      const events = await market.queryFilter(
+        market.filters.OrderBidCreated(),
+        block
+      );
+      expect(events.length).eq(2);
+
+      const currentOrder = await market.orders(1);
+      const log = market.interface.parseLog(events[1]);
+      expect(log.name).to.eq("OrderBidCreated");
+      expect(log.args.bidder).to.eq(currentOrder.bidder);
+      expect(log.args.price).to.eq(currentOrder.price);
+      expect(log.args.extended).to.eq(false);
+    });
+
+    it("should be able to bid with ERC20 and extend the duration", async function () {
+      const reservePrice = 1000000;
+      const duration = 60 * 15;
+      const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
+      await market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        extensionDuration,
+        minBidIncrement,
+        idrt.address
+      );
+
+      const accounts = await ethers.getSigners();
+      const balance = BigNumber.from("2000000");
+      await idrt.mint(accounts[1].address, balance);
+      await idrt.connect(accounts[1]).approve(market.address, balance);
+      await idrt.mint(accounts[2].address, balance);
+      await idrt.connect(accounts[2]).approve(market.address, balance);
+
+      const block = await ethers.provider.getBlockNumber();
+      await market.connect(accounts[1]).createBidOrder(1, reservePrice);
+
+      const secondBidPrice = 1100000;
+      await market.connect(accounts[2]).createBidOrder(1, secondBidPrice);
+
+      const events = await market.queryFilter(
+        market.filters.OrderBidCreated(),
+        block
+      );
+      expect(events.length).eq(2);
+
+      const currentOrder = await market.orders(1);
+      const log = market.interface.parseLog(events[1]);
+      expect(log.name).to.eq("OrderBidCreated");
+      expect(log.args.bidder).to.eq(currentOrder.bidder);
+      expect(log.args.price).to.eq(currentOrder.price);
+      expect(log.args.extended).to.eq(true);
+    });
+
+    it("should be able refund ERC20 to first bidder", async function () {
+      const reservePrice = 1000000;
+      const duration = 60 * 15;
+      const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
+      await market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        extensionDuration,
+        minBidIncrement,
+        idrt.address
+      );
+
+      const accounts = await ethers.getSigners();
+      const balance = BigNumber.from("2000000");
+      await idrt.mint(accounts[1].address, balance);
+      await idrt.connect(accounts[1]).approve(market.address, balance);
+      await idrt.mint(accounts[2].address, balance);
+      await idrt.connect(accounts[2]).approve(market.address, balance);
+
+      const block = await ethers.provider.getBlockNumber();
+      await market.connect(accounts[1]).createBidOrder(1, reservePrice);
+
+      const lastBalance = await idrt.balanceOf(accounts[1].address);
+
+      const secondBidPrice = 1100000;
+      await market.connect(accounts[2]).createBidOrder(1, secondBidPrice);
+
+      const currentBalance = await idrt.balanceOf(accounts[1].address);
+      const expectedRefund = BigNumber.from("1000000");
+      expect(currentBalance.sub(lastBalance)).to.eq(expectedRefund);
+    });
+  });
 });
