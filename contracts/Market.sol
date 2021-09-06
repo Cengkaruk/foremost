@@ -283,7 +283,25 @@ contract Market is
   function updateAuctionOrder(uint256 orderId, uint256 reservePrice)
     public
     override
-  {}
+    orderExists(orderId)
+    onlyOrderCreator(orderId)
+  {
+    Order storage _order = orders[orderId];
+    require(_order.endTime == 0, "Market: Auction in progress");
+    require(reservePrice > 0, "Market: reservePrice cannot be zero");
+
+    _order.reservePrice = reservePrice;
+
+    emit OrderUpdated(
+      orderId,
+      _order.orderType,
+      _order.tokenId,
+      _order.tokenContract,
+      _order.price,
+      _order.reservePrice,
+      _order.currency
+    );
+  }
 
   function finalizeAuctionOrder(uint256 orderId) public override nonReentrant {}
 

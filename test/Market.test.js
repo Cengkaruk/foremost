@@ -1544,4 +1544,146 @@ describe("Market", function () {
         .rejectedWith("Market: Auction in progress");
     });
   });
+
+  describe("Update auction order", async function () {
+    let market;
+
+    beforeEach(async function () {
+      market = await deploy();
+
+      const accounts = await ethers.getSigners();
+      await nfts.test.safeMint(accounts[0].address);
+
+      await nfts.test.setApprovalForAll(
+        market.address,
+        true
+      );
+    });
+
+    it("should revert when orderId not exist", async function () {
+      const reservePrice = utils.parseEther("1");
+      const updateOrder = market.updateAuctionOrder(
+        1,
+        reservePrice
+      );
+
+      expect(updateOrder)
+        .eventually
+        .rejectedWith("Market: The order does not exist");
+    });
+
+    it("should revert when not order creator", async function () {
+      const reservePrice = utils.parseEther("1");
+      const duration = 60 * 60 * 24;
+      const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
+      await market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        extensionDuration,
+        minBidIncrement,
+        ethers.constants.AddressZero
+      );
+
+      const accounts = await ethers.getSigners();
+      const updateOrder = market.connect(accounts[1]).updateAuctionOrder(
+        1,
+        reservePrice
+      );
+
+      expect(updateOrder)
+        .eventually
+        .rejectedWith("Market: Only can be called by order creator");
+    });
+
+    it("should revert when auction in progress", async function () {
+      const reservePrice = utils.parseEther("1");
+      const duration = 60 * 60 * 24;
+      const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
+      await market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        extensionDuration,
+        minBidIncrement,
+        ethers.constants.AddressZero
+      );
+
+      await market.createBidOrder(1, reservePrice, { value: reservePrice });
+
+      const updateOrder = market.updateAuctionOrder(
+        1,
+        reservePrice
+      );
+
+      expect(updateOrder)
+        .eventually
+        .rejectedWith("Market: Auction in progress");
+    });
+
+    it("should revert when auction in progress", async function () {
+      const reservePrice = utils.parseEther("1");
+      const duration = 60 * 60 * 24;
+      const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
+      await market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        extensionDuration,
+        minBidIncrement,
+        ethers.constants.AddressZero
+      );
+
+      const updateOrder = market.updateAuctionOrder(
+        1,
+        0
+      );
+
+      expect(updateOrder)
+        .eventually
+        .rejectedWith("Market: reservePrice cannot be zero");
+    });
+
+    it("should update the order", async function () {
+      const reservePrice = utils.parseEther("1");
+      const duration = 60 * 60 * 24;
+      const extensionDuration = 60 * 15;
+      const minBidIncrement = 100;
+      await market.createAuctionOrder(
+        1,
+        nfts.test.address,
+        reservePrice,
+        duration,
+        extensionDuration,
+        minBidIncrement,
+        ethers.constants.AddressZero
+      );
+
+      const block = await ethers.provider.getBlockNumber();
+      const newReservePrice = utils.parseEther("2");
+      await market.updateAuctionOrder(
+        1,
+        newReservePrice
+      );
+
+      const events = await market.queryFilter(
+        market.filters.OrderUpdated(),
+        block
+      );
+      expect(events.length).eq(1);
+
+      const currentOrder = await market.orders(1);
+      const log = market.interface.parseLog(events[0]);
+      expect(log.name).to.eq("OrderUpdated");
+      expect(log.args.reservePrice).to.eq(currentOrder.reservePrice);
+
+      expect(currentOrder.reservePrice).to.eq(newReservePrice);
+    });
+  });
 });
