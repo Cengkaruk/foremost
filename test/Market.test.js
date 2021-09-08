@@ -133,6 +133,13 @@ describe("Market", function () {
     return market.connect(account).createBidOrder(orderId, price, { value: value });
   }
 
+  async function finalizeAuctionOrder({
+    account = accounts[0],
+    orderId
+  }) {
+    return market.connect(account).finalizeAuctionOrder(orderId);
+  }
+
   async function cancelOrder({
     account = accounts[0],
     orderId
@@ -1699,6 +1706,113 @@ describe("Market", function () {
           reservePrice: currentOrder.reservePrice
         }
       })
+    });
+  });
+
+  describe("Finalize auction order", async function () {
+    it("should revert when auction not started", async function () {
+      const reservePrice = ethers.utils.parseEther("1");
+      await createAuctionOrder({
+        tokenId: 1,
+        tokenContract: nfts.test.address,
+        reservePrice: reservePrice
+      });
+
+      const finalize = finalizeAuctionOrder({ orderId: 1 });
+
+      expect(finalize)
+        .eventually
+        .rejectedWith("Market: Auction not started");
+    });
+
+    it("should revert when auction in progress", async function () {
+      const reservePrice = ethers.utils.parseEther("1");
+      await createAuctionOrder({
+        tokenId: 1,
+        tokenContract: nfts.test.address,
+        reservePrice: reservePrice
+      });
+
+      await createBidOrder({
+        orderId: 1,
+        price: reservePrice,
+        value: reservePrice
+      });
+
+      const finalize = finalizeAuctionOrder({ orderId: 1 });
+
+      expect(finalize)
+        .eventually
+        .rejectedWith("Market: Auction in progress");
+    });
+
+    it("should able to finalize auction", async function () {
+      const reservePrice = ethers.utils.parseEther("1");
+      await createAuctionOrder({
+        tokenId: 1,
+        tokenContract: nfts.test.address,
+        reservePrice: reservePrice,
+        duration: 1
+      });
+
+      await createBidOrder({
+        account: accounts[1],
+        orderId: 1,
+        price: reservePrice,
+        value: reservePrice
+      });
+
+      const block = await ethers.provider.getBlockNumber();
+      const lastBalance = await ethers.provider.getBalance(accounts[0].address);
+      const treasuryLastBalance = await ethers.provider.getBalance(accounts[9].address);
+      const currentOrder = await market.orders(1);
+
+      await new Promise(r => setTimeout(r, 2000));
+      await finalizeAuctionOrder({ orderId: 1 });
+
+      const expectedId = BigNumber.from("1");
+      const expectedMarketPortion = ethers.utils.parseEther("0.05");
+      const expectedCreatorPortion = BigNumber.from("0");
+      const expectedOwnerPortion = ethers.utils.parseEther("0.95");
+
+      await expectEvents({
+        block: block,
+        event: "OrderFinished",
+        length: 1,
+        index: 0,
+        args: {
+          orderId: expectedId,
+          orderType: currentOrder.orderType,
+          tokenId: currentOrder.tokenId,
+          tokenContract: currentOrder.tokenContract,
+          tokenOwner: currentOrder.tokenOwner,
+          bidder: accounts[1].address,
+          price: currentOrder.price,
+          marketPortion: expectedMarketPortion,
+          creatorPortion: expectedCreatorPortion,
+          ownerPortion: expectedOwnerPortion,
+          currency: currentOrder.currency
+        }
+      });
+
+      const tokenOwner = await nfts.test.ownerOf(1);
+      expect(tokenOwner).to.eq(accounts[1].address);
+
+      const expectedProfit = BigNumber.from("950000000000000000");
+      const expectedTreasuryProfit = BigNumber.from("50000000000000000");
+
+      await expectBalances([
+        {
+          address: accounts[2].address,
+          balance: lastBalance,
+          profit: expectedProfit
+        },
+        {
+          address: accounts[9].address,
+          balance: treasuryLastBalance,
+          profit: expectedTreasuryProfit
+        },
+      ]);
     });
   });
 });

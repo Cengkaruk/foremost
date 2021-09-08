@@ -98,44 +98,7 @@ contract Market is
       _order.currency
     );
 
-    try
-      IERC721Upgradeable(_order.tokenContract).safeTransferFrom(
-        address(this),
-        _order.bidder,
-        _order.tokenId
-      )
-    {} catch {
-      _handleOutgoing(_order.bidder, _order.price, _order.currency);
-      return;
-    }
-
-    (
-      uint256 _marketPortion,
-      uint256 _creatorPortion,
-      uint256 _ownerPortion
-    ) = _distributeFunds(
-        _order.tokenId,
-        _order.tokenContract,
-        _order.tokenOwner,
-        _order.price,
-        _order.currency
-      );
-
-    emit OrderFinished(
-      orderId,
-      _order.orderType,
-      _order.tokenId,
-      _order.tokenContract,
-      _order.tokenOwner,
-      _order.bidder,
-      _order.price,
-      _marketPortion,
-      _creatorPortion,
-      _ownerPortion,
-      _order.currency
-    );
-
-    delete orders[orderId];
+    _finalizeOrder(orderId);
   }
 
   function createAuctionOrder(
@@ -303,7 +266,14 @@ contract Market is
     );
   }
 
-  function finalizeAuctionOrder(uint256 orderId) public override nonReentrant {}
+  function finalizeAuctionOrder(uint256 orderId) public override nonReentrant {
+    Order memory _order = orders[orderId];
+
+    require(_order.endTime > 0, "Market: Auction not started");
+    require(_order.endTime < block.timestamp, "Market: Auction in progress");
+
+    _finalizeOrder(orderId);
+  }
 
   /* ========== INTERNAL ========== */
 
@@ -379,6 +349,49 @@ contract Market is
     );
 
     return orderId;
+  }
+
+  function _finalizeOrder(uint256 orderId) internal {
+    Order memory _order = orders[orderId];
+
+    try
+      IERC721Upgradeable(_order.tokenContract).safeTransferFrom(
+        address(this),
+        _order.bidder,
+        _order.tokenId
+      )
+    {} catch {
+      _handleOutgoing(_order.bidder, _order.price, _order.currency);
+      return;
+    }
+
+    (
+      uint256 _marketPortion,
+      uint256 _creatorPortion,
+      uint256 _ownerPortion
+    ) = _distributeFunds(
+        _order.tokenId,
+        _order.tokenContract,
+        _order.tokenOwner,
+        _order.price,
+        _order.currency
+      );
+
+    emit OrderFinished(
+      orderId,
+      _order.orderType,
+      _order.tokenId,
+      _order.tokenContract,
+      _order.tokenOwner,
+      _order.bidder,
+      _order.price,
+      _marketPortion,
+      _creatorPortion,
+      _ownerPortion,
+      _order.currency
+    );
+
+    delete orders[orderId];
   }
 
   function _checkRoyalties(address tokenContract) internal view returns (bool) {
