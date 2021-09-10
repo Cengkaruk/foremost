@@ -17,8 +17,6 @@ import "./interfaces/IERC2981.sol";
 import "./interfaces/IRoyaltyV1.sol";
 import "./interfaces/IRoyaltyV2.sol";
 
-import "hardhat/console.sol";
-
 contract Market is
   Initializable,
   IMarket,
@@ -30,8 +28,8 @@ contract Market is
   using CountersUpgradeable for CountersUpgradeable.Counter;
   using SafeERC20Upgradeable for IERC20Upgradeable;
 
-  address public marketTreasury;
   uint256 public marketFee;
+  address public marketTreasury;
   address public wethAddress;
 
   mapping(uint256 => Order) public orders;
@@ -39,11 +37,9 @@ contract Market is
   CountersUpgradeable.Counter private _orderIdCounter;
 
   bytes4 constant ERC721InterfaceId = 0x80ac58cd;
-  // NFT Royalty Standard
+  // NFT Royalty
   bytes4 constant ERC2981InterfaceId = 0x2a55205a;
-  // NFT Royalty: Foundation, Rarible
   bytes4 constant RoyaltyV1InterfaceId = 0xb7799584;
-  // NFT Royalty: Rarible
   bytes4 constant RoyaltyV2InterfaceId = 0x44c74bcc;
 
   function initialize(address weth) public initializer {
